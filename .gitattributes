@@ -1,0 +1,2 @@
+# Scripts must keep LF endings, even on Windows checkouts (core.autocrlf).
+* text=auto eol=lf

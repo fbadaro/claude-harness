@@ -1,0 +1,25 @@
+# claude-harness configuration (sh syntax: KEY=value). Lives in
+# <project>/.claude/harness.conf; install.sh never overwrites it.
+
+# Branch nobody may push to, create, delete or force-push (guard and pre-push).
+PROTECTED_BRANCH=main
+
+# 1 = the guard only lets `gh pr merge` run when every check of the PR is
+# pass/skipping (needs the gh CLI). 0 = no checks rule.
+REQUIRE_GREEN_CHECKS=1
+
+# Formatter per file extension, run after every Edit/Write by format.sh.
+#   FORMAT_<ext>="command args {}"   {} becomes ./<path relative to the project>
+#   FORMAT_DIR_<ext>=subdir          optional: run inside subdir, with the path
+#                                    relative to it; files outside it are skipped
+# The command is split on spaces (no quotes, no shell expansion).
+# Extensions without a FORMAT_<ext> line are left alone.
+#
+# FORMAT_go="gofmt -w {}"
+# FORMAT_py="ruff format {}"
+# FORMAT_ts="npx prettier --write {}"
+# FORMAT_rs="rustfmt {}"
+
+# Path prefixes (relative to the project, space separated) that are never
+# formatted, e.g. generated code.
+FORMAT_SKIP=""

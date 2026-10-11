@@ -1,0 +1,3 @@
+# Follow the "source" directives between the hook scripts.
+external-sources=true
+source-path=SCRIPTDIR
