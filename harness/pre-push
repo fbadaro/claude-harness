@@ -1,0 +1,64 @@
+#!/bin/sh
+# claude-harness pre-push: git hook, the authoritative push guard.
+#
+# git passes the refs actually being pushed, already resolved (aliases,
+# remote.push config, HEAD, variables), one per line on stdin:
+#   <local ref> <local sha> <remote ref> <remote sha>
+# Rejects (exit 1) any push that creates, updates or deletes the protected
+# branch, and any non-fast-forward push. When it cannot verify, it rejects.
+# Enable once per clone: git config core.hooksPath .claude/harness
+set -eu
+
+PROTECTED_BRANCH=main
+root=$(git rev-parse --show-toplevel)
+if [ -f "$root/.claude/harness.conf" ]; then
+	# shellcheck source=/dev/null
+	. "$root/.claude/harness.conf"
+fi
+
+is_zero() {
+	case $1 in
+	*[!0]*) return 1 ;;
+	*) return 0 ;;
+	esac
+}
+
+rejected=0
+reject() {
+	if [ "$rejected" = 0 ]; then
+		echo "pre-push rejected by claude-harness:" >&2
+	fi
+	echo "  $1" >&2
+	rejected=1
+}
+
+while read -r local_ref local_sha remote_ref remote_sha extra; do
+	[ -n "$local_ref" ] || continue
+	if [ -z "$remote_sha" ] || [ -n "$extra" ]; then
+		echo "pre-push (claude-harness): unexpected input line: $local_ref $local_sha $remote_ref $remote_sha $extra" >&2
+		exit 1
+	fi
+	if [ "$remote_ref" = "refs/heads/$PROTECTED_BRANCH" ]; then
+		reject "$local_ref -> $remote_ref: pushing to $PROTECTED_BRANCH is not allowed; open a PR from a ticket branch"
+		continue
+	fi
+	if is_zero "$local_sha" || is_zero "$remote_sha"; then
+		continue # deleting a (non-protected) branch, or creating a new one
+	fi
+	if ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+		reject "$local_ref -> $remote_ref: cannot verify this is a fast-forward (run git fetch first)"
+		continue
+	fi
+	if git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+		continue
+	else
+		status=$?
+	fi
+	if [ "$status" = 1 ]; then
+		reject "$local_ref -> $remote_ref: not a fast-forward (force-push rewrites history); push a new commit instead"
+	else
+		reject "$local_ref -> $remote_ref: cannot verify this is a fast-forward (git merge-base exited $status)"
+	fi
+done
+
+exit "$rejected"
