@@ -1,4 +1,4 @@
-# claude-harness configuration (sh syntax: KEY=value). Lives in
+# claude-harness configuration: one KEY=value per line (parsed, never executed). Lives in
 # <project>/.claude/harness.conf; install.sh never overwrites it.
 
 # Branch nobody may push to, create, delete or force-push (guard and pre-push).
