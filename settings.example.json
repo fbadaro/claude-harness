@@ -1,4 +1,11 @@
 {
+  "permissions": {
+    "deny": [
+      "Edit(**/.claude/harness/**)",
+      "Edit(**/.claude/harness.conf)",
+      "Edit(**/.claude/settings.json)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {

@@ -17,6 +17,8 @@ O harness é uma **barreira de boa-fé contra acidentes** de um agente cooperati
 * O `pre-push` é a **proteção principal**. O git entrega a ele as refs reais do push, já resolvidas (aliases, variáveis, `HEAD`), então não há como enganá-lo pelo texto do comando. Só um `git push --no-verify` o contorna, e a guarda bloqueia essa opção.
 * A `guard.sh` **não interpreta shell**. Ela tira as aspas, separa o comando nos separadores (`;`, `&&`, `|`, quebras de linha...) e examina os argumentos de cada chamada a `git`/`gh`, inclusive dentro de `bash -c "..."` ou `pwsh -Command "..."`. Um agente determinado a contorná-la consegue (por exemplo, gerando um script e executando). Para isso existe o `pre-push`, e a proteção de branch do GitHub, se o seu plano tiver.
 * Quando não consegue decidir, a guarda **bloqueia** (fail-closed). Isso vale para JSON inválido, `jq` ausente e branch atual desconhecida.
+* O `harness.conf` é **lido, nunca executado**. Só as chaves conhecidas são aceitas, e um valor inválido mantém a regra ligada: um `PROTECTED_BRANCH` inválido faz o `pre-push` rejeitar o push. Assim, um agente que edite o arquivo não consegue rodar código nem desligar o `pre-push`.
+* O `settings.example.json` **nega ao agente** editar `.claude/harness/`, `.claude/harness.conf` e `.claude/settings.json` pelas ferramentas de edição. Quem muda a configuração é você.
 
 ## Pré-requisitos
 
@@ -36,7 +38,7 @@ O `gh` só é necessário para a regra "merge só com checks verdes" (`REQUIRE_G
 1. **Copie o harness para o projeto**, numa tag fixa:
 
    ```sh
-   git clone --depth 1 --branch v0.1.0 https://github.com/fbadaro/claude-harness /tmp/claude-harness
+   git clone --depth 1 --branch v0.1.1 https://github.com/fbadaro/claude-harness /tmp/claude-harness
    sh /tmp/claude-harness/install.sh /caminho/do/projeto
    ```
 
@@ -45,7 +47,7 @@ O `gh` só é necessário para a regra "merge só com checks verdes" (`REQUIRE_G
    * cria `.claude/harness.conf` a partir do exemplo, **só se ele ainda não existir**;
    * ativa o `pre-push` (`git config core.hooksPath .claude/harness`) se o `core.hooksPath` ainda não estiver definido. Se já estiver, ele avisa e não muda nada.
 
-2. **Ligue os hooks no Claude Code.** Junte o bloco `hooks` de [`settings.example.json`](settings.example.json) ao `.claude/settings.json` do projeto (crie o arquivo se não existir). O `$CLAUDE_PROJECT_DIR` faz os hooks funcionarem mesmo quando o agente está numa subpasta.
+2. **Ligue os hooks no Claude Code.** Junte os blocos `permissions.deny` e `hooks` de [`settings.example.json`](settings.example.json) ao `.claude/settings.json` do projeto (crie o arquivo se não existir). As regras `deny` impedem o agente de editar a própria configuração das proteções. Depois disso, mudanças nesses arquivos são feitas por você, num editor. O `$CLAUDE_PROJECT_DIR` faz os hooks funcionarem mesmo quando o agente está numa subpasta.
 
 3. **Configure e versione.** Ajuste os formatadores em `.claude/harness.conf`. Depois faça commit de `.claude/harness/`, `.claude/harness.conf` e `.claude/settings.json`. No Windows, preserve o bit de execução para quem clonar no Linux/macOS:
 
@@ -89,7 +91,7 @@ Se um bloqueio atrapalhar algo legítimo, **rode o comando você mesmo** (`! <co
 
 ## Configuração (`.claude/harness.conf`)
 
-Arquivo em sintaxe sh (`CHAVE=valor`), lido pelos três hooks. O `install.sh` nunca o sobrescreve.
+Uma linha `CHAVE=valor` por opção, lida pelos três hooks. O valor pode vir entre aspas, e é permitido um comentário `#` no fim da linha. O arquivo é **lido, não executado**: chaves desconhecidas e comandos são ignorados, e finais de linha CRLF funcionam. O `install.sh` nunca o sobrescreve.
 
 | Chave | Padrão | Significado |
 |---|---|---|

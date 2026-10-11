@@ -183,6 +183,12 @@ guard "go test" $A main "go test ./..."
 guard "git status" $A main "git status"
 guard "commit" $A main "git commit -m 'add parser'"
 guard "empty command" $A main ""
+# redirections are not arguments (issue #3)
+guard "redirect target with variable" $A issue-12-x 'git push origin issue-12-x > "$LOG/out.txt"'
+guard "glued redirect with variable" $A issue-12-x 'git push origin issue-12-x 2>$ERR'
+guard "append redirect" $A issue-12-x 'git push origin issue-12-x >> $LOG'
+guard "redirect does not hide main" $B issue-12-x "git push origin main > out.txt"
+guard "printf to file mentioning push" $A issue-12-x 'printf x > "$D/f"; git push origin issue-12-x'
 # accepted false positives (documented in the README)
 guard "echo mentioning push main" $B main 'echo "git push origin main"'
 guard "commit message with reset --hard" $B main "git commit -m 'avoid git reset --hard'"
@@ -203,6 +209,15 @@ guard "conf: push trunk" $B issue-1-x "git push origin trunk"
 guard "conf: push main allowed" $A issue-1-x "git push origin main"
 echo "REQUIRE_GREEN_CHECKS=0" >"$proj/.claude/harness.conf"
 FAKE_GH_BUCKETS=fail guard "conf: merge without checks rule" $A issue-12-x "gh pr merge 12"
+# the conf is parsed, never executed (agent-writable file)
+printf 'PROTECTED_BRANCH=trunk\r\nREQUIRE_GREEN_CHECKS=1\r\n' >"$proj/.claude/harness.conf"
+guard "conf: CRLF line endings" $B issue-1-x "git push origin trunk"
+printf '%s\n' "touch \"$tmp/pwned\"" 'PROTECTED_BRANCH=$(touch pwned2)' 'REQUIRE_GREEN_CHECKS=no' >"$proj/.claude/harness.conf"
+FAKE_GH_BUCKETS=fail guard "conf: invalid values keep the rules" $B issue-12-x "gh pr merge 12"
+guard "conf: invalid branch keeps main" $B issue-1-x "git push origin main"
+if [ ! -e "$tmp/pwned" ] && [ ! -e "$proj/pwned2" ]; then ok; else ko "conf: code in harness.conf must not run"; fi
+printf '%s\n' 'PROTECTED_BRANCH="trunk"   # quoted, with comment' >"$proj/.claude/harness.conf"
+guard "conf: quoted value with comment" $B issue-1-x "git push origin trunk"
 rm "$proj/.claude/harness.conf"
 
 # --- format --------------------------------------------------------------------
@@ -279,6 +294,12 @@ mkdir -p "$pp/.claude"
 echo "PROTECTED_BRANCH=trunk" >"$pp/.claude/harness.conf"
 prepush "conf: push to trunk" 1 "refs/heads/x $B_SHA refs/heads/trunk $A_SHA\n"
 prepush "conf: main is not protected" 0 "refs/heads/x $B_SHA refs/heads/main $A_SHA\n"
+printf 'PROTECTED_BRANCH=trunk\r\n' >"$pp/.claude/harness.conf"
+prepush "conf: CRLF" 1 "refs/heads/x $B_SHA refs/heads/trunk $A_SHA\n"
+printf '%s\n' 'exit 0' 'PROTECTED_BRANCH=main' >"$pp/.claude/harness.conf"
+prepush "conf: code is not executed" 1 "refs/heads/x $B_SHA refs/heads/main $A_SHA\n"
+printf '%s\n' 'PROTECTED_BRANCH=$(echo x)' >"$pp/.claude/harness.conf"
+prepush "conf: invalid branch rejects" 1 "refs/heads/x $B_SHA refs/heads/feature $A_SHA\n"
 
 # --- install.sh ------------------------------------------------------------------
 target="$tmp/target"

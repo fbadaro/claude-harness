@@ -222,7 +222,17 @@ check_gh() {
 }
 
 while IFS= read -r seg; do
-	read -ra words <<<"$seg" || true
+	read -ra raw <<<"$seg" || true
+	# Drop redirections and their targets (> f, 2>err, >>"$LOG"): they are
+	# not arguments of the command.
+	words=()
+	skip=0
+	for w in "${raw[@]}"; do
+		if [ "$skip" = 1 ]; then skip=0; continue; fi
+		if [[ $w =~ ^[0-9]*(\>\>?|\<\<?)$ ]]; then skip=1; continue; fi
+		[[ $w =~ ^[0-9]*[\<\>] ]] && continue
+		words+=("$w")
+	done
 	[ "${#words[@]}" -gt 0 ] || continue
 	case ${words[0],,} in
 	cd | pushd | popd | chdir | set-location | sl | push-location) dir_changed=1; continue ;;

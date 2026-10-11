@@ -11,9 +11,20 @@ set -eu
 
 PROTECTED_BRANCH=main
 root=$(git rev-parse --show-toplevel)
-if [ -f "$root/.claude/harness.conf" ]; then
-	# shellcheck source=/dev/null
-	. "$root/.claude/harness.conf"
+conf="$root/.claude/harness.conf"
+# The file is parsed, never sourced: an agent can edit it, and this hook is
+# the authoritative guard. Only PROTECTED_BRANCH is read; a value that is not
+# a plain branch name rejects every push (fail-closed).
+if [ -f "$conf" ]; then
+	value=$(sed -n 's/^[[:space:]]*PROTECTED_BRANCH=//p' "$conf" | tail -n 1 |
+		tr -d "\r\"'" | sed 's/[[:space:]]*#.*$//; s/[[:space:]]*$//')
+	case $value in
+	"") ;;
+	*[!A-Za-z0-9._/-]*)
+		echo "pre-push (claude-harness): invalid PROTECTED_BRANCH in $conf: $value" >&2
+		exit 1 ;;
+	*) PROTECTED_BRANCH=$value ;;
+	esac
 fi
 
 is_zero() {
